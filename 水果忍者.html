@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Yhlight</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom right, rgb(255, 166, 174), rgb(255, 192, 203), #A4C4D9, rgb(150, 224, 245), #D3B7F0, #B18BE4);
+        }
+
+        #score {
+            position: fixed;
+            top: 10px;
+            right: 20px;
+            font-size: 24px;
+            color: white;
+            font-weight: 700;
+            text-shadow: 0 0 5px #000000aa;
+            user-select: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="score">得分: 0</div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        const scoreEl = document.getElementById("score");
+
+        const gravity = 0.25;
+        const fruits = [];
+        const halves = [];
+        let trails = [];
+
+        class Fruit {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 30;
+                this.color = `hsl(${Math.random() * 360}, 80%, 60%)`;
+                this.vx = Math.random() * 4 - 2;
+
+                const vyMin = Math.sqrt(canvas.height / 12);
+                this.vy = -vyMin - Math.random() * 5;
+                this.marked = false;
+            }
+            update() {
+                this.x += this.vx;
+                this.vy += gravity;
+                this.y += this.vy;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.fillStyle = this.color;
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class FruitHalf {
+            constructor(x, y, radius, color, vx, vy, startAngle, endAngle) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.vx = vx;
+                this.vy = vy;
+                this.startAngle = startAngle;
+                this.endAngle = endAngle;
+                this.rotation = 0;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.2;
+                this.alpha = 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.vy += gravity;
+                this.y += this.vy;
+                this.rotation += this.rotationSpeed;
+                this.alpha -= 0.01;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.fillStyle = this.color;
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, this.radius, this.startAngle, this.endAngle);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        function spawnFruit() {
+            const x = Math.random() * canvas.width;
+            const y = canvas.height + 30;
+            fruits.push(new Fruit(x, y));
+        }
+
+        setInterval(spawnFruit, 1200);
+
+        function drawTrails() {
+            if (trails.length < 2) return;
+            ctx.beginPath();
+            for (let i = 0; i < trails.length; i++) {
+                const p = trails[i];
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            }
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.lineWidth = 6;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.shadowColor = "rgba(255, 255, 255, 0.5)";
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        function sliceFruit(fruit) {
+            const leftHalf = new FruitHalf(
+                fruit.x,
+                fruit.y,
+                fruit.radius,
+                fruit.color,
+                fruit.vx - 2,
+                fruit.vy - 2,
+                Math.PI / 2,
+                Math.PI * 1.5
+            );
+            const rightHalf = new FruitHalf(
+                fruit.x,
+                fruit.y,
+                fruit.radius,
+                fruit.color,
+                fruit.vx + 2,
+                fruit.vy - 2,
+                Math.PI * 1.5,
+                Math.PI / 2 + 2 * Math.PI
+            );
+            halves.push(leftHalf, rightHalf);
+        }
+
+        function detectSlice(x, y) {
+            fruits.forEach((fruit, index) => {
+                const dx = fruit.x - x;
+                const dy = fruit.y - y;
+                if (!fruit.marked && Math.sqrt(dx * dx + dy * dy) < fruit.radius) {
+                    fruit.marked = true;
+                    score++;
+                    scoreEl.textContent = `得分: ${score}`;
+                    sliceFruit(fruit);
+                    fruits.splice(index, 1);
+                }
+            });
+        }
+
+        canvas.addEventListener("mousemove", e => {
+            trails.push({ x: e.clientX, y: e.clientY, time: Date.now() });
+            detectSlice(e.clientX, e.clientY);
+        });
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = fruits.length - 1; i >= 0; i--) {
+                const fruit = fruits[i];
+                if (fruit.y > canvas.height + 100) {
+                    fruits.splice(i, 1);
+                    continue;
+                }
+                fruit.update();
+                fruit.draw();
+            }
+
+            for (let i = halves.length - 1; i >= 0; i--) {
+                const half = halves[i];
+                if (half.alpha <= 0) {
+                    halves.splice(i, 1);
+                    continue;
+                }
+                half.update();
+                half.draw();
+            }
+
+            const now = Date.now();
+            trails = trails.filter(p => now - p.time < 300);
+            drawTrails();
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+
+</html>
