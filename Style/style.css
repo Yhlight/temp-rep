@@ -1,0 +1,16 @@
+#canvas {
+    display: block;
+    background: linear-gradient(to bottom right, rgb(255, 166, 174), rgb(255, 192, 203), #A4C4D9, rgb(150, 224, 245), #D3B7F0, #B18BE4);
+}
+
+#score {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    font-size: 24px;
+    color: white;
+    font-weight: 700;
+    text-shadow: 0 0 5px #000000aa;
+    user-select: none;
+    z-index: 10;
+}
